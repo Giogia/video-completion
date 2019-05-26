@@ -1,11 +1,27 @@
-from parameters import *
+from config import *
 import cv2
 import os
 import math
 from PIL import Image
 import numpy as np
 
-DEBUG = True
+
+def get_videos(test_list):
+
+    video_list = []
+
+    if os.path.isfile(test_list):
+        print('Adding ' + test_list)
+        list_file = open(test_list, 'r').read()
+        video_list.extend(list_file.split('\n'))
+
+    return video_list
+
+
+def make_dirs(path):
+
+    if not os.path.exists(path):
+        os.makedirs(path)
 
 
 def cvt_img2train(img, cropping_rate=1):
@@ -13,31 +29,26 @@ def cvt_img2train(img, cropping_rate=1):
     img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY))
 
     if cropping_rate != 1:
-        h = int(height / cropping_rate)
-        dh = int((h - height) / 2)
-        w = int(width / cropping_rate)
-        dw = int((w - width) / 2)
+        h = int(HEIGHT / cropping_rate)
+        dh = int((h - HEIGHT) / 2)
+        w = int(WIDTH / cropping_rate)
+        dw = int((w - WIDTH) / 2)
 
         img = img.resize((w, h), Image.BILINEAR)
-        img = img.crop((dw, dh, dw + width, dh + height))
+        img = img.crop((dw, dh, dw + WIDTH, dh + HEIGHT))
 
     else:
-        img = img.resize((width, height), Image.BILINEAR)
+        img = img.resize((WIDTH, HEIGHT), Image.BILINEAR)
 
     img = np.array(img)
     img = img * (1. / 255) - 0.5
-    img = img.reshape((1, height, width, 1))
+    img = img.reshape((1, HEIGHT, WIDTH, 1))
 
     return img
 
 
-def make_dirs(path):
-    if not os.path.exists(path):
-        os.makedirs(path)
-
-
 def cvt_train2img(x):
-    return ((np.reshape(x, (height, width)) + 0.5) * 255).astype(np.uint8)
+    return ((np.reshape(x, (HEIGHT, WIDTH)) + 0.5) * 255).astype(np.uint8)
 
 
 def cvt2int32(x):
@@ -75,10 +86,10 @@ def cvt_theta_mat(theta_mat):
     # ret * scale_mat * x = scale_mat * x'
     # ret = scale_mat * theta_mat * scale_mat^-1
     scale_mat = np.eye(3)
-    scale_mat[0, 0] = width / 2.
-    scale_mat[0, 2] = width / 2.
-    scale_mat[1, 1] = height / 2.
-    scale_mat[1, 2] = height / 2.
+    scale_mat[0, 0] = WIDTH / 2.
+    scale_mat[0, 2] = WIDTH / 2.
+    scale_mat[1, 1] = HEIGHT / 2.
+    scale_mat[1, 2] = HEIGHT / 2.
     assert (theta_mat.shape == (3, 3))
     from numpy.linalg import inv
     return np.matmul(np.matmul(scale_mat, theta_mat), inv(scale_mat))
@@ -88,7 +99,7 @@ def warp_rev(img, theta):
     assert (img.ndim == 3)
     assert (img.shape[-1] == 3)
     theta_mat_cvt = cvt_theta_mat(theta)
-    return cv2.warpPerspective(img, theta_mat_cvt, dsize=(width, height), flags=cv2.WARP_INVERSE_MAP | cv2.INTER_LINEAR)
+    return cv2.warpPerspective(img, theta_mat_cvt, dsize=(WIDTH, HEIGHT), flags=cv2.WARP_INVERSE_MAP | cv2.INTER_LINEAR)
 
 
 def cvt_theta_mat_bundle(hs):
@@ -96,12 +107,12 @@ def cvt_theta_mat_bundle(hs):
     # ret * scale_mat * x = scale_mat * x'
     # ret = scale_mat * theta_mat * scale_mat^-1
     scale_mat = np.eye(3)
-    scale_mat[0, 0] = width / 2.
-    scale_mat[0, 2] = width / 2.
-    scale_mat[1, 1] = height / 2.
-    scale_mat[1, 2] = height / 2.
+    scale_mat[0, 0] = WIDTH / 2.
+    scale_mat[0, 2] = WIDTH / 2.
+    scale_mat[1, 1] = HEIGHT / 2.
+    scale_mat[1, 2] = HEIGHT / 2.
 
-    hs = hs.reshape((grid_h, grid_w, 3, 3))
+    hs = hs.reshape((GRID_H, GRID_W, 3, 3))
     from numpy.linalg import inv
 
     return np.matmul(np.matmul(scale_mat, hs), inv(scale_mat))
@@ -111,12 +122,12 @@ def warp_rev_bundle2(img, x_map, y_map):
     assert (img.ndim == 3)
     assert (img.shape[-1] == 3)
     rate = 4
-    x_map = cv2.resize(cv2.resize(x_map, (int(width / rate), int(height / rate))), (width, height))
-    y_map = cv2.resize(cv2.resize(y_map, (int(width / rate), int(height / rate))), (width, height))
-    x_map = (x_map + 1) / 2 * width
-    y_map = (y_map + 1) / 2 * height
+    x_map = cv2.resize(cv2.resize(x_map, (int(WIDTH / rate), int(HEIGHT / rate))), (WIDTH, HEIGHT))
+    y_map = cv2.resize(cv2.resize(y_map, (int(WIDTH / rate), int(HEIGHT / rate))), (WIDTH, HEIGHT))
+    x_map = (x_map + 1) / 2 * WIDTH
+    y_map = (y_map + 1) / 2 * HEIGHT
     dst = cv2.remap(img, x_map, y_map, cv2.INTER_LINEAR)
-    assert (dst.shape == (height, width, 3))
+    assert (dst.shape == (HEIGHT, WIDTH, 3))
     return dst
 
 
@@ -125,25 +136,25 @@ def warp_rev_bundle(img, hs):
     assert (img.shape[-1] == 3)
     hs_cvt = cvt_theta_mat_bundle(hs)
 
-    gh = int(math.floor(height / grid_h))
-    gw = int(math.floor(width / grid_w))
+    gh = int(math.floor(HEIGHT / GRID_H))
+    gw = int(math.floor(WIDTH / GRID_W))
     img_ = []
-    for i in range(grid_h):
+    for i in range(GRID_H):
         row_img_ = []
-        for j in range(grid_w):
+        for j in range(GRID_W):
             h = hs_cvt[i, j, :, :]
             sh = i * gh
             eh = (i + 1) * gh - 1
             sw = j * gw
             ew = (j + 1) * gw - 1
-            if i == grid_h - 1:
-                eh = height - 1
-            if j == grid_w - 1:
-                ew = width - 1
-            temp = cv2.warpPerspective(img, h, dsize=(width, height), flags=cv2.WARP_INVERSE_MAP | cv2.INTER_LINEAR)
+            if i == GRID_H - 1:
+                eh = HEIGHT - 1
+            if j == GRID_W - 1:
+                ew = WIDTH - 1
+            temp = cv2.warpPerspective(img, h, dsize=(WIDTH, HEIGHT), flags=cv2.WARP_INVERSE_MAP | cv2.INTER_LINEAR)
             row_img_.append(temp[sh:eh + 1, sw:ew + 1, :])
         img_.append(np.concatenate(row_img_, axis=1))
     img = np.concatenate(img_, axis=0)
-    assert (img.shape == (height, width, 3))
+    assert (img.shape == (HEIGHT, WIDTH, 3))
     return img
 
